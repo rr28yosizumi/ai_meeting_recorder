@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Jupyter Notebook
+*.ipynb_checkpoints
+
+# VSCode
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 音声・議事録一時ファイル
+*.wav
+*.txt
+*.yml
+meeting.json
+chunks/
+
+# Pipenv
+Pipfile.lock
+
+# その他
+*.log
+*.tmp
