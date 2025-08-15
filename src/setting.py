@@ -7,7 +7,7 @@ CHANNELS = 1
 RECORD_SECONDS = 600 * 30  # 最大録音時間（例: 30分）
 
 # ファイル格納先
-BASE_DIR = os.path.join(os.path.dirname(__file__))
+BASE_DIR = os.getcwd()
 WAV_FILE = os.path.join(BASE_DIR, "meeting.wav")
 CHUNK_DIR = os.path.join(BASE_DIR, "chunks")
 MINUTES_FILE = os.path.join(BASE_DIR, "meeting_minutes.txt")
@@ -27,7 +27,7 @@ G_PROMPT ="""
 
 ###  1on1議事録（対象者名）
 **日時**：YYYY年MM月DD日  
-**参加者**：渡邊 / （対象者名）
+**参加者**： / （対象者名）
 
 ---
 

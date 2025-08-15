@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai_meeting_recorder"
+version = "0.1.0"
+description = "会議録音・議事録作成ツール"
+authors = [
+    { name = "R-28", email = "rr28_yosizumi@hotmail.com" }
+]
+readme = "Readme.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.8"
+dependencies = [
+    "numpy",
+    "scipy",
+    "sounddevice",
+    "matplotlib",
+    "pyyaml"
+]
+
+[project.urls]
+Homepage = "https://github.com/rr28yosizumi/ai_meeting_recorder"
+
+[project.scripts]
+ai_meeting_recorder = "ai_meeting_recorder.main:main"

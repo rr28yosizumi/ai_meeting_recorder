@@ -26,7 +26,6 @@ Whisperは`pip`ではうまく動作しない場合があるため、`conda`で�
 
 ```powershell
 conda install -c conda-forge ffmpeg
-conda install -c conda-forge whisper
 ```
 
 #### pipでインストール
@@ -34,7 +33,7 @@ conda install -c conda-forge whisper
 一部ライブラリは`pip`でインストールします。
 
 ```powershell
-pip install sounddevice matplotlib google-generativeai numba --upgrade --ignore-installed
+pip install sounddevice matplotlib google-generativeai openai-whisper numba --upgrade --ignore-installed
 ```
 
 #### その他依存
@@ -47,7 +46,12 @@ pip install sounddevice matplotlib google-generativeai numba --upgrade --ignore-
 pip install .
 ```
 
-または、`setup.py`を利用してインストールしてください。
+※インストールで使えない場合、ai_meeting_recorderのディレクトリをカレントディレクトリにしてモジュール実行してください
+
+```powershell
+python -m src.main
+```
+
 
 ## 使い方
 

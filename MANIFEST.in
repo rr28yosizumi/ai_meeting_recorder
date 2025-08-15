@@ -1,0 +1,4 @@
+include Readme.md
+include LICENSE
+recursive-include ai_meeting_recorder *.yml
+recursive-include ai_meeting_recorder *.txt

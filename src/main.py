@@ -1,4 +1,6 @@
 from . import gui_control
 
-if __name__ == '__main__':
+def main():
     gui_control.main()
+if __name__ == '__main__':
+    main()

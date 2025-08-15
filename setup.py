@@ -6,14 +6,14 @@ setup(
     description='会議録音・議事録作成ツール',
     author='R-28',
     author_email='rr28_yosizumi@hotmail.com',
-    packages=find_packages(where='src'),
+    packages=find_packages('src'),
     package_dir={'': 'src'},
     install_requires=[
         'numpy',
         'scipy',
         'sounddevice',
         'matplotlib',
-        'tkinter',
+        'pyyaml',
     ],
     python_requires='>=3.8',
     entry_points={
