@@ -51,7 +51,9 @@ class RecorderGUI:
         self.fig = Figure(figsize=(5,2))
         self.ax = self.fig.add_subplot(111)
         self.ax.set_facecolor('black')  # 背景を黒
-        self.line, = self.ax.plot([], [], color='lime')  # 波形を緑色
+        self.line, = self.ax.plot([], [], color='lime')  # 初期は緑色
+        self.preview_stream = None
+        self.preview_frames = []
         self.ax.set_ylim(-1, 1)
         self.ax.set_xlim(0, 1000)
         self.ax.tick_params(axis='x', colors='white')  # x軸目盛り文字色を白
@@ -72,6 +74,7 @@ class RecorderGUI:
         self.mic_device_combo['values'] = mic_devices
         self.mic_device_combo.current(0)
         self.mic_device_combo.grid(row=row, column=1, columnspan=3, sticky="ew")
+        self.mic_device_combo.bind('<<ComboboxSelected>>', self.on_device_change)
         row += 1
 
         # デバイス選択（スピーカー）
@@ -82,6 +85,7 @@ class RecorderGUI:
         self.spk_device_combo['values'] = spk_devices
         self.spk_device_combo.current(0)
         self.spk_device_combo.grid(row=row, column=1, columnspan=3, sticky="ew")
+        self.spk_device_combo.bind('<<ComboboxSelected>>', self.on_device_change)
         row += 1
 
         # 言語選択コンボボックス
@@ -137,7 +141,38 @@ class RecorderGUI:
         row += 1
 
         self.record_thread = None
+        self.start_preview_stream()
         self.update_waveform()
+        
+    def on_device_change(self, event=None):
+        self.stop_preview_stream()
+        self.start_preview_stream()
+
+    def start_preview_stream(self):
+        # プレビュー用ストリーム開始
+        mic_name = self.mic_device_var.get()
+        mic_id = [i for i, d in enumerate(sd.query_devices()) if d['name'] == mic_name][0]
+        self.preview_frames = []
+        def preview_callback(indata, frames_count, time, status):
+            if status:
+                self.log(f"プレビュー: {status}")
+            self.preview_frames.append(indata.copy())
+            if len(self.preview_frames) > 10:
+                self.preview_frames.pop(0)
+        try:
+            self.preview_stream = sd.InputStream(samplerate=self.settings.sample_rate, channels=self.settings.channels, device=mic_id, callback=preview_callback)
+            self.preview_stream.start()
+        except Exception as e:
+            self.log(f"プレビューエラー: {e}")
+
+    def stop_preview_stream(self):
+        if self.preview_stream:
+            try:
+                self.preview_stream.stop()
+                self.preview_stream.close()
+            except Exception:
+                pass
+            self.preview_stream = None
 
     def log(self, msg):
         self.log_box['state'] = 'normal'
@@ -152,6 +187,8 @@ class RecorderGUI:
             self.output_path.set(path)
 
     def start_recording(self):
+        self.stop_preview_stream()
+        self.line.set_color('red')  # 波形色を赤に
         self.is_recording = True
         self.is_paused = False
         self.frames = []
@@ -182,6 +219,7 @@ class RecorderGUI:
         self.log("録音再開")
 
     def stop_recording(self):
+        self.line.set_color('lime')  # 波形色を緑に
         self.is_recording = False
         self.btn_record['state'] = 'normal'
         self.btn_pause['state'] = 'disabled'
@@ -201,6 +239,7 @@ class RecorderGUI:
             self.process_minutes()
         else:
             self.log("録音データがありません")
+        self.start_preview_stream()
 
     def record_audio(self, mic_id, spk_id):
         def mic_callback(indata, frames_count, time, status):
@@ -233,8 +272,16 @@ class RecorderGUI:
             self.log(f"録音エラー: {e}")
 
     def update_waveform(self):
-        if self.frames:
+        if self.is_recording and self.frames:
             data = np.concatenate(self.frames, axis=0)
+            if len(data) > 1000:
+                data = data[-1000:]
+            self.line.set_data(np.arange(len(data)), data.flatten())
+            self.ax.set_xlim(0, len(data))
+            self.ax.set_ylim(-1, 1)
+            self.canvas.draw()
+        elif not self.is_recording and self.preview_frames:
+            data = np.concatenate(self.preview_frames, axis=0)
             if len(data) > 1000:
                 data = data[-1000:]
             self.line.set_data(np.arange(len(data)), data.flatten())
