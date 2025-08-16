@@ -20,13 +20,11 @@
 
 ### 2. 必要なライブラリ
 
-#### condaでインストール（推奨）
+#### FFMpegのインストール
 
-Whisperは`pip`ではうまく動作しない場合があるため、`conda`でインストールしてください。
-
-```powershell
-conda install -c conda-forge ffmpeg
-```
+事前にFFMpegをインストールしてください
+Windowsでのインストール方法は下記を参照
+https://www.kkaneko.jp/tools/win/ffmpeg.html
 
 #### pipでインストール
 
