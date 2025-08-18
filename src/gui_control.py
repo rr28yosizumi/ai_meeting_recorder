@@ -10,6 +10,8 @@ import os
 import numpy as np
 import scipy.io.wavfile as wav
 import sounddevice as sd
+import tempfile
+from pydub import AudioSegment
 
 from .setting import AppSettings
 from . import ai_control
@@ -43,7 +45,8 @@ class RecorderGUI:
         self.is_recording = False
         self.is_paused = False
         self.audio_queue = queue.Queue()
-        self.frames = []
+        self.mic_frames = []
+        self.spk_frames = []
         self.stream = None
         self.device_var = tk.StringVar()
         self.output_path = tk.StringVar(value=self.settings.minutes_file)
@@ -194,6 +197,8 @@ class RecorderGUI:
         self.frames = []
         self.mic_queue = queue.Queue()
         self.spk_queue = queue.Queue()
+        self.mic_frames = []
+        self.spk_frames = []
         self.btn_record['state'] = 'disabled'
         self.btn_pause['state'] = 'normal'
         self.btn_resume['state'] = 'disabled'
@@ -229,12 +234,30 @@ class RecorderGUI:
         if self.record_thread:
             self.record_thread.join()
         # WAV保存
-        if self.frames:
-            audio = np.concatenate(self.frames, axis=0)
+        if self.mic_frames and self.spk_frames:
+            
+            mic_data = np.concatenate(self.mic_frames, axis=0)
+            spk_data = np.concatenate(self.spk_frames, axis=0)
             # float32 → int16 変換（WAV標準）
-            audio_int16 = np.clip(audio, -1, 1)
-            audio_int16 = (audio_int16 * 32767).astype(np.int16)
-            wav.write(self.settings.wav_file, self.settings.sample_rate, audio_int16)
+            mic_int16 = np.clip(mic_data, -1, 1)
+            mic_int16 = (mic_int16 * 32767).astype(np.int16)
+            spk_int16 = np.clip(spk_data, -1, 1)
+            spk_int16 = (spk_int16 * 32767).astype(np.int16)
+            # 一時ファイルに保存
+            mic_wav_path = os.path.join(tempfile.gettempdir(), "mic_temp.wav")
+            spk_wav_path = os.path.join(tempfile.gettempdir(), "spk_temp.wav")
+            wav.write(mic_wav_path, self.settings.sample_rate, mic_int16)
+            wav.write(spk_wav_path, self.settings.sample_rate, spk_int16)
+            # pydubでミックス
+            mic_seg = AudioSegment.from_wav(mic_wav_path)
+            spk_seg = AudioSegment.from_wav(spk_wav_path)
+            # 長さを揃える
+            if len(mic_seg) < len(spk_seg):
+                mic_seg = mic_seg.append(AudioSegment.silent(duration=len(spk_seg)-len(mic_seg), frame_rate=self.settings.sample_rate), crossfade=0)
+            elif len(spk_seg) < len(mic_seg):
+                spk_seg = spk_seg.append(AudioSegment.silent(duration=len(mic_seg)-len(spk_seg), frame_rate=self.settings.sample_rate), crossfade=0)
+            mixed_seg = mic_seg.overlay(spk_seg)
+            mixed_seg.export(self.settings.wav_file, format="wav")
             self.log(f"録音保存: {self.settings.wav_file}")
             self.process_minutes()
         else:
@@ -259,21 +282,17 @@ class RecorderGUI:
                     try:
                         mic_frame = self.mic_queue.get(timeout=0.1)
                         spk_frame = self.spk_queue.get(timeout=0.1)
-                        # shapeを揃える
-                        min_len = min(len(mic_frame), len(spk_frame))
-                        mic_frame = mic_frame[:min_len]
-                        spk_frame = spk_frame[:min_len]
-                        # 合成（平均）
-                        mixed = ((mic_frame.astype(np.float32) + spk_frame.astype(np.float32)) / 2).astype(np.float32)
-                        self.frames.append(mixed)
+                        # そのまま保存（長さ合わせは合成時に実施）
+                        self.mic_frames.append(mic_frame)
+                        self.spk_frames.append(spk_frame)
                     except queue.Empty:
                         continue
         except Exception as e:
             self.log(f"録音エラー: {e}")
 
     def update_waveform(self):
-        if self.is_recording and self.frames:
-            data = np.concatenate(self.frames, axis=0)
+        if self.is_recording and self.mic_frames:
+            data = np.concatenate(self.mic_frames, axis=0)
             if len(data) > 1000:
                 data = data[-1000:]
             self.line.set_data(np.arange(len(data)), data.flatten())
