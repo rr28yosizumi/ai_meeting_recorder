@@ -14,6 +14,9 @@ setup(
         'sounddevice',
         'matplotlib',
         'pyyaml',
+        'pydub',
+        'tkinter',
+        'audioop-lts',
     ],
     python_requires='>=3.8',
     entry_points={
