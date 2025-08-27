@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, scrolledtext
+from tkinter import messagebox
 import threading
 import queue
 import matplotlib
@@ -19,6 +20,17 @@ from . import ai_control
 INIT_YAML = os.path.join(os.getcwd(), "init.yml")
 
 class RecorderGUI:
+    def update_transcribe_button_state(self):
+        # 録音中は無効化
+        if self.is_recording:
+            self.btn_transcribe['state'] = 'disabled'
+            return
+        # WAVファイルが存在しない場合は無効化
+        wav_file = self.wav_path.get()
+        if not wav_file or not os.path.exists(wav_file):
+            self.btn_transcribe['state'] = 'disabled'
+        else:
+            self.btn_transcribe['state'] = 'normal'
     def on_close(self):
         # 現在のGUI値をsettingsへ反映
         self.settings.minutes_file = self.output_path.get()
@@ -50,21 +62,25 @@ class RecorderGUI:
         self.stream = None
         self.device_var = tk.StringVar()
         self.output_path = tk.StringVar(value=self.settings.minutes_file)
+        self.wav_path = tk.StringVar(value=self.settings.wav_file)
         self.gemini_key_var = tk.StringVar(value=self.settings.gemini_api_key)
-        self.fig = Figure(figsize=(5,2))
-        self.ax = self.fig.add_subplot(111)
-        self.ax.set_facecolor('black')  # 背景を黒
-        self.line, = self.ax.plot([], [], color='lime')  # 初期は緑色
-        self.preview_stream = None
-        self.preview_frames = []
-        self.ax.set_ylim(-1, 1)
-        self.ax.set_xlim(0, 1000)
-        self.ax.tick_params(axis='x', colors='white')  # x軸目盛り文字色を白
-        self.ax.tick_params(axis='y', colors='white')  # y軸目盛り文字色を白
-        self.ax.spines['bottom'].set_color('white')
-        self.ax.spines['top'].set_color('white')
-        self.ax.spines['left'].set_color('white')
-        self.ax.spines['right'].set_color('white')
+        self.fig = Figure(figsize=(8,2))
+        self.ax_mic = self.fig.add_subplot(121)
+        self.ax_spk = self.fig.add_subplot(122)
+        for ax in [self.ax_mic, self.ax_spk]:
+            ax.set_facecolor('black')
+            ax.set_ylim(-1, 1)
+            ax.set_xlim(0, 1000)
+            ax.tick_params(axis='x', colors='white')
+            ax.tick_params(axis='y', colors='white')
+            ax.spines['bottom'].set_color('white')
+            ax.spines['top'].set_color('white')
+            ax.spines['left'].set_color('white')
+            ax.spines['right'].set_color('white')
+        self.line_mic, = self.ax_mic.plot([], [], color='lime', label='Mic')
+        self.line_spk, = self.ax_spk.plot([], [], color='cyan', label='Speaker')
+        self.ax_mic.set_title('mic')
+        self.ax_spk.set_title('speaker')
         self.canvas = FigureCanvasTkAgg(self.fig, master)
         self.canvas.get_tk_widget().grid(row=row, column=0, columnspan=4)
         row += 1
@@ -114,12 +130,19 @@ class RecorderGUI:
         self.btn_output.grid(row=row, column=3)
         row += 1
 
+        # WAV保存先指定
+        ttk.Label(master, text="録音WAV保存先:").grid(row=row, column=0)
+        self.wav_entry = ttk.Entry(master, textvariable=self.wav_path)
+        self.wav_entry.grid(row=row, column=1, columnspan=2, sticky="ew")
+        self.btn_wav = ttk.Button(master, text="参照", command=self.select_wav)
+        self.btn_wav.grid(row=row, column=3)
+        row += 1
+
         # プロンプト入力
         ttk.Label(master, text="Geminiプロンプト:").grid(row=row, column=0)
         self.prompt_entry = scrolledtext.ScrolledText(master, height=4)
         self.prompt_entry.grid(row=row, column=1, columnspan=3, sticky="nsew")
         self.prompt_entry.insert(tk.END, self.settings.prompt)
-        # ウィンドウサイズに合わせてプロンプト欄が拡大・縮小するよう設定
         master.grid_rowconfigure(row, weight=1)
         master.grid_columnconfigure(1, weight=1)
         master.grid_columnconfigure(2, weight=1)
@@ -137,6 +160,12 @@ class RecorderGUI:
         self.btn_stop.grid(row=row, column=3)
         row += 1
 
+        # 既存WAVから文字起こし・要約実行ボタン
+        self.btn_transcribe = ttk.Button(master, text="WAVから文字起こし・要約", command=self.transcribe_and_summarize)
+        self.btn_transcribe.grid(row=row, column=0, columnspan=4, sticky="ew")
+        row += 1
+        self.update_transcribe_button_state()
+
         # ログ表示
         ttk.Label(master, text="ログ:").grid(row=row, column=0)
         self.log_box = scrolledtext.ScrolledText(master, height=4, state="disabled")
@@ -146,36 +175,77 @@ class RecorderGUI:
         self.record_thread = None
         self.start_preview_stream()
         self.update_waveform()
+
+    def select_wav(self):
+        path = filedialog.askopenfilename(defaultextension=".wav", filetypes=[("WAV files", "*.wav")])
+        if path:
+            self.wav_path.set(path)
+        self.update_transcribe_button_state()
+
+    def transcribe_and_summarize(self):
+        wav_file = self.wav_path.get()
+        if not os.path.exists(wav_file):
+            self.log(f"指定されたWAVファイルが存在しません: {wav_file}")
+            return
+        self.log(f"WAVファイルから文字起こし・要約を実行: {wav_file}")
+        lang = "ja" if self.lang_var.get().startswith("日本語") else "en"
+        ai_control.create_meeting_report(
+            self.prompt_entry.get("1.0", tk.END),
+            wav_file,
+            self.settings.chunk_dir,
+            self.settings.record_seconds,
+            self.output_path.get(),
+            self.gemini_key_var.get(),
+            logger=self.log,
+            lang=lang
+        )
+        messagebox.showinfo("要約完了", "要約処理が終了しました。")
+
+    # ...existing code...
         
     def on_device_change(self, event=None):
         self.stop_preview_stream()
         self.start_preview_stream()
 
     def start_preview_stream(self):
-        # プレビュー用ストリーム開始
         mic_name = self.mic_device_var.get()
+        spk_name = self.spk_device_var.get()
         mic_id = [i for i, d in enumerate(sd.query_devices()) if d['name'] == mic_name][0]
+        spk_id = [i for i, d in enumerate(sd.query_devices()) if d['name'] == spk_name][0]
         self.preview_frames = []
+        self.spk_preview_frames = []
         def preview_callback(indata, frames_count, time, status):
             if status:
                 self.log(f"プレビュー: {status}")
             self.preview_frames.append(indata.copy())
             if len(self.preview_frames) > 10:
                 self.preview_frames.pop(0)
+        def spk_preview_callback(indata, frames_count, time, status):
+            if status:
+                self.log(f"プレビュー(スピーカー): {status}")
+            self.spk_preview_frames.append(indata.copy())
+            if len(self.spk_preview_frames) > 10:
+                self.spk_preview_frames.pop(0)
         try:
             self.preview_stream = sd.InputStream(samplerate=self.settings.sample_rate, channels=self.settings.channels, device=mic_id, callback=preview_callback)
+            self.preview_stream_spk = sd.InputStream(samplerate=self.settings.sample_rate, channels=self.settings.channels, device=spk_id, callback=spk_preview_callback)
             self.preview_stream.start()
+            self.preview_stream_spk.start()
         except Exception as e:
             self.log(f"プレビューエラー: {e}")
 
     def stop_preview_stream(self):
-        if self.preview_stream:
-            try:
-                self.preview_stream.stop()
-                self.preview_stream.close()
-            except Exception:
-                pass
-            self.preview_stream = None
+        for stream in [self.preview_stream, self.preview_stream_spk]:
+            if stream:
+                try:
+                    stream.stop()
+                    stream.close()
+                except Exception:
+                    pass
+        self.preview_stream = None
+        self.preview_stream_spk = None
+        self.preview_frames = []
+        self.spk_preview_frames = []
 
     def log(self, msg):
         self.log_box['state'] = 'normal'
@@ -191,8 +261,10 @@ class RecorderGUI:
 
     def start_recording(self):
         self.stop_preview_stream()
-        self.line.set_color('red')  # 波形色を赤に
+        self.line_mic.set_color('red')  # 波形色を赤に
+        self.line_spk.set_color('red')  # 波形色を赤に
         self.is_recording = True
+        self.update_transcribe_button_state()
         self.is_paused = False
         self.frames = []
         self.mic_queue = queue.Queue()
@@ -208,7 +280,12 @@ class RecorderGUI:
         spk_name = self.spk_device_var.get()
         mic_id = [i for i, d in enumerate(sd.query_devices()) if d['name'] == mic_name][0]
         spk_id = [i for i, d in enumerate(sd.query_devices()) if d['name'] == spk_name][0]
-        self.record_thread = threading.Thread(target=self.record_audio, args=(mic_id, spk_id))
+        self.same_device = (mic_id == spk_id)
+        if self.same_device:
+            self.log("マイクとスピーカーが同じデバイスのため、マイクのみ録音します")
+            self.record_thread = threading.Thread(target=self.record_audio, args=(mic_id, None))
+        else:
+            self.record_thread = threading.Thread(target=self.record_audio, args=(mic_id, spk_id))
         self.record_thread.start()
 
     def pause_recording(self):
@@ -224,8 +301,10 @@ class RecorderGUI:
         self.log("録音再開")
 
     def stop_recording(self):
-        self.line.set_color('lime')  # 波形色を緑に
+        self.line_mic.set_color('lime')  # 波形色を緑に
+        self.line_spk.set_color('lime')  # 波形色を緑に
         self.is_recording = False
+        self.update_transcribe_button_state()
         self.btn_record['state'] = 'normal'
         self.btn_pause['state'] = 'disabled'
         self.btn_resume['state'] = 'disabled'
@@ -234,24 +313,29 @@ class RecorderGUI:
         if self.record_thread:
             self.record_thread.join()
         # WAV保存
-        if self.mic_frames and self.spk_frames:
-            
+        if getattr(self, 'same_device', False):
+            if self.mic_frames:
+                mic_data = np.concatenate(self.mic_frames, axis=0)
+                mic_int16 = np.clip(mic_data, -1, 1)
+                mic_int16 = (mic_int16 * 32767).astype(np.int16)
+                wav.write(self.settings.wav_file, self.settings.sample_rate, mic_int16)
+                self.log(f"録音保存: {self.settings.wav_file}")
+                self.process_minutes()
+            else:
+                self.log("録音データがありません")
+        elif self.mic_frames and self.spk_frames:
             mic_data = np.concatenate(self.mic_frames, axis=0)
             spk_data = np.concatenate(self.spk_frames, axis=0)
-            # float32 → int16 変換（WAV標準）
             mic_int16 = np.clip(mic_data, -1, 1)
             mic_int16 = (mic_int16 * 32767).astype(np.int16)
             spk_int16 = np.clip(spk_data, -1, 1)
             spk_int16 = (spk_int16 * 32767).astype(np.int16)
-            # 一時ファイルに保存
             mic_wav_path = os.path.join(tempfile.gettempdir(), "mic_temp.wav")
             spk_wav_path = os.path.join(tempfile.gettempdir(), "spk_temp.wav")
             wav.write(mic_wav_path, self.settings.sample_rate, mic_int16)
             wav.write(spk_wav_path, self.settings.sample_rate, spk_int16)
-            # pydubでミックス
             mic_seg = AudioSegment.from_wav(mic_wav_path)
             spk_seg = AudioSegment.from_wav(spk_wav_path)
-            # 長さを揃える
             if len(mic_seg) < len(spk_seg):
                 mic_seg = mic_seg.append(AudioSegment.silent(duration=len(spk_seg)-len(mic_seg), frame_rate=self.settings.sample_rate), crossfade=0)
             elif len(spk_seg) < len(mic_seg):
@@ -262,6 +346,7 @@ class RecorderGUI:
             self.process_minutes()
         else:
             self.log("録音データがありません")
+        
         self.start_preview_stream()
 
     def record_audio(self, mic_id, spk_id):
@@ -291,22 +376,36 @@ class RecorderGUI:
             self.log(f"録音エラー: {e}")
 
     def update_waveform(self):
-        if self.is_recording and self.mic_frames:
-            data = np.concatenate(self.mic_frames, axis=0)
-            if len(data) > 1000:
-                data = data[-1000:]
-            self.line.set_data(np.arange(len(data)), data.flatten())
-            self.ax.set_xlim(0, len(data))
-            self.ax.set_ylim(-1, 1)
-            self.canvas.draw()
-        elif not self.is_recording and self.preview_frames:
-            data = np.concatenate(self.preview_frames, axis=0)
-            if len(data) > 1000:
-                data = data[-1000:]
-            self.line.set_data(np.arange(len(data)), data.flatten())
-            self.ax.set_xlim(0, len(data))
-            self.ax.set_ylim(-1, 1)
-            self.canvas.draw()
+        if self.is_recording:
+            mic_frames = self.mic_frames
+            spk_frames = self.spk_frames
+        else:
+            mic_frames = self.preview_frames
+            spk_frames = self.spk_preview_frames
+        # マイク
+        if mic_frames:
+            mic_data = np.concatenate(mic_frames, axis=0)
+            if len(mic_data) > 1000:
+                mic_data = mic_data[-1000:]
+            self.line_mic.set_data(np.arange(len(mic_data)), mic_data.flatten())
+            self.ax_mic.set_xlim(0, len(mic_data))
+        else:
+            self.line_mic.set_data([], [])
+            self.ax_mic.set_xlim(0, 1000)
+        # スピーカー
+        if spk_frames:
+            spk_data = np.concatenate(spk_frames, axis=0)
+            if len(spk_data) > 1000:
+                spk_data = spk_data[-1000:]
+            self.line_spk.set_data(np.arange(len(spk_data)), spk_data.flatten())
+            self.ax_spk.set_xlim(0, len(spk_data))
+        else:
+            self.line_spk.set_data([], [])
+            self.ax_spk.set_xlim(0, 1000)
+        self.ax_mic.set_ylim(-1, 1)
+        self.ax_spk.set_ylim(-1, 1)
+        self.canvas.draw()
+        self.update_transcribe_button_state()
         self.master.after(100, self.update_waveform)
 
     def process_minutes(self):

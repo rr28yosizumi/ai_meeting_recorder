@@ -50,6 +50,12 @@ pip install .
 python -m src.main
 ```
 
+※Pyinstallerを使う場合は、Whisperのデータを含めるようにしてください
+```
+pyinstaller ai_meeting_recorder.py --onefile --add-data "YOUR_PYTHON_DIR\Lib\site-packages\whisper:whisper"
+```
+参考
+https://stackoverflow.com/questions/75981036/python-openai-whisper-filenotfounderror-when-running-a-standalone-created-with-p
 
 ## 使い方
 
