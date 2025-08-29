@@ -31,11 +31,16 @@ def transcribe_audio_whisper(file_path, lang="ja"):
         str: Whisperによる文字起こし結果（テキスト）。
     仕様:
         - 指定した音声ファイルをWhisperモデルで文字起こし。
-        - 結果テキストを返す。
+        - セグメントごとに改行を挿入してテキストを返す。
     """
     model = whisper.load_model("small")
     result = model.transcribe(file_path, language=lang)
-    return result["text"]
+    # セグメントごとに改行を挿入
+    if "segments" in result:
+        text = "\n".join([seg["text"].strip() for seg in result["segments"]])
+    else:
+        text = result["text"]
+    return text
 
 
 def create_meeting_report(prompt,voice,chunk_dir,split_seconds,out_voice_text,gemini_key,logger=None,lang="ja"):
