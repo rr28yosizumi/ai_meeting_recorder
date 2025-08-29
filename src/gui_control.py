@@ -20,6 +20,10 @@ from . import ai_control
 INIT_YAML = os.path.join(os.getcwd(), "init.yml")
 
 class RecorderGUI:
+    """レガシーGUIクラス (後方互換用)
+    新しいMVC構成では controller.RecorderController を使用してください。
+    今後の変更はそちらに反映され、このクラスは削除予定です。
+    """
     def update_transcribe_button_state(self):
         # 録音中は無効化
         if self.is_recording:
