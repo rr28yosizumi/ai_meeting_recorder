@@ -34,6 +34,23 @@ class RecorderController:
         self.start_preview()
         self._schedule_waveform_update()
 
+    # 汎用ボタン状態変更（CustomTkinter/Tk 両対応）
+    def _set_state(self, widget, state: str):
+        for fn in (lambda w,s: w.configure(state=s), lambda w,s: w.__setitem__('state', s)):
+            try:
+                fn(widget, state)
+                break
+            except Exception:
+                continue
+
+    def _set_states(self, mapping: dict):
+        for w, st in mapping.items():
+            self._set_state(w, st)
+        try:
+            self.view.master.update_idletasks()
+        except Exception:
+            pass
+
     def on_close(self):
         """ウィンドウクローズ時に設定を保存"""
         self.model.settings.minutes_file = self.view.output_path.get()
@@ -162,10 +179,16 @@ class RecorderController:
         self.is_recording = True
         self.is_paused = False
         self.model.reset()
-        self.view.btn_record['state'] = 'disabled'
-        self.view.btn_pause['state'] = 'normal'
-        self.view.btn_resume['state'] = 'disabled'
-        self.view.btn_stop['state'] = 'normal'
+        self._set_states({
+            self.view.btn_record: 'disabled',
+            self.view.btn_pause: 'normal',
+            self.view.btn_resume: 'disabled',
+            self.view.btn_stop: 'normal'
+        })
+        try:
+            self.view.set_recording_state(True)
+        except Exception:
+            pass
         self.view.log('録音開始')
         mic_name = self.view.mic_device_var.get()
         spk_name = self.view.spk_device_var.get()
@@ -184,15 +207,19 @@ class RecorderController:
     def pause_recording(self):
         if not self.is_recording: return
         self.is_paused = True
-        self.view.btn_pause['state'] = 'disabled'
-        self.view.btn_resume['state'] = 'normal'
+        self._set_states({
+            self.view.btn_pause: 'disabled',
+            self.view.btn_resume: 'normal'
+        })
         self.view.log('録音中断')
 
     def resume_recording(self):
         if not self.is_recording: return
         self.is_paused = False
-        self.view.btn_pause['state'] = 'normal'
-        self.view.btn_resume['state'] = 'disabled'
+        self._set_states({
+            self.view.btn_pause: 'normal',
+            self.view.btn_resume: 'disabled'
+        })
         self.view.log('録音再開')
 
     def stop_recording(self):
@@ -200,10 +227,16 @@ class RecorderController:
         self.is_recording = False
         if self.record_thread:
             self.record_thread.join()
-        self.view.btn_record['state'] = 'normal'
-        self.view.btn_pause['state'] = 'disabled'
-        self.view.btn_resume['state'] = 'disabled'
-        self.view.btn_stop['state'] = 'disabled'
+        self._set_states({
+            self.view.btn_record: 'normal',
+            self.view.btn_pause: 'disabled',
+            self.view.btn_resume: 'disabled',
+            self.view.btn_stop: 'disabled'
+        })
+        try:
+            self.view.set_recording_state(False)
+        except Exception:
+            pass
         self.view.log('録音終了')
         if self.model.mix_and_save(logger=self.view.log):
             self._process_minutes()
@@ -240,9 +273,21 @@ class RecorderController:
         if self.is_recording:
             mic_frames = self.model.mic_frames
             spk_frames = self.model.spk_frames
+            # 録音中は赤色表示
+            try:
+                self.view.line_mic.set_color('red')
+                self.view.line_spk.set_color('red')
+            except Exception:
+                pass
         else:
             mic_frames = self.preview_mic_frames
             spk_frames = self.preview_spk_frames
+            # 非録音時は元の色へ戻す
+            try:
+                self.view.line_mic.set_color('lime')
+                self.view.line_spk.set_color('cyan')
+            except Exception:
+                pass
         self.view.update_waveform(mic_frames, spk_frames)
         self._update_transcribe_button_state()
         self.view.master.after(100, self._schedule_waveform_update)

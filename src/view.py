@@ -209,6 +209,16 @@ class RecorderView:
     # 波形更新
     # ------------------------------------------------------------------
     def update_waveform(self, mic_frames, spk_frames):
+        # 録音状態に応じてライン色を切り替え
+        try:
+            if getattr(self, '_is_recording', False):
+                self.line_mic.set_color('red')
+                self.line_spk.set_color('red')
+            else:
+                self.line_mic.set_color('lime')
+                self.line_spk.set_color('cyan')
+        except Exception:
+            pass
         if mic_frames:
             mic_data = np.concatenate(mic_frames, axis=0)
             if len(mic_data) > 1000:
@@ -230,6 +240,9 @@ class RecorderView:
         self.ax_mic.set_ylim(-1, 1)
         self.ax_spk.set_ylim(-1, 1)
         self.canvas.draw()
+
+    def set_recording_state(self, is_recording: bool):
+        self._is_recording = is_recording
 
     # ------------------------------------------------------------------
     # ダイアログ
