@@ -4,6 +4,12 @@ import time
 import os
 from .controller import RecorderController
 from . import ai_control
+try:
+    import customtkinter as ctk
+    _USE_CTK = True
+except Exception:
+    ctk = None
+    _USE_CTK = False
 
 def _center(win):
     win.update_idletasks()
@@ -60,7 +66,11 @@ def main():
     splash.mainloop()
 
     # メインGUI
-    root = tk.Tk()
+    # CustomTkinter 利用可能ならメインウィンドウも CTk を使用
+    if _USE_CTK:
+        root = ctk.CTk()
+    else:
+        root = tk.Tk()
     root.title('AI Meeting Recorder (MVC)')
     controller = RecorderController(root)
     root.protocol('WM_DELETE_WINDOW', controller.on_close)

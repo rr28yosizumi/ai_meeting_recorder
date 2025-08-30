@@ -60,19 +60,30 @@ class RecorderController:
         v.btn_resume.configure(command=self.resume_recording)
         v.btn_stop.configure(command=self.stop_recording)
         v.btn_transcribe.configure(command=self.transcribe_and_summarize)
-        v.mic_device_combo.bind('<<ComboboxSelected>>', lambda e: self.restart_preview())
-        v.spk_device_combo.bind('<<ComboboxSelected>>', lambda e: self.restart_preview())
+        # 変数トレースでツールキット非依存の変更検知
+        try:
+            self.view.mic_device_var.trace_add('write', lambda *a: self.restart_preview())
+            self.view.spk_device_var.trace_add('write', lambda *a: self.restart_preview())
+        except Exception:
+            pass
 
     def _populate_devices(self):
         devices = sd.query_devices()
         mic_list = [d['name'] for d in devices if d['max_input_channels'] > 0]
         spk_list = [d['name'] for d in devices if d['max_input_channels'] > 0]
-        self.view.mic_device_combo['values'] = mic_list
-        self.view.spk_device_combo['values'] = spk_list
-        if mic_list:
-            self.view.mic_device_combo.current(0)
-        if spk_list:
-            self.view.spk_device_combo.current(0)
+        try:
+            self.view.set_device_options(mic_list, spk_list)
+        except Exception:
+            # フォールバック (旧 ttk Combobox の可能性など)
+            try:
+                self.view.mic_device_combo['values'] = mic_list
+                self.view.spk_device_combo['values'] = spk_list
+                if mic_list:
+                    self.view.mic_device_combo.current(0)
+                if spk_list:
+                    self.view.spk_device_combo.current(0)
+            except Exception:
+                pass
 
     def select_output(self):
         path = self.view.ask_save_text()
