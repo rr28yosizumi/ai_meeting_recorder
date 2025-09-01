@@ -3,7 +3,9 @@ import threading
 import time
 import os
 from .controller import RecorderController
+from .view import BG_COLOR, FG_COLOR
 from . import ai_control
+from .resource_util import resource_path
 try:
     import customtkinter as ctk
     _USE_CTK = True
@@ -22,10 +24,17 @@ def main():
     # スプラッシュ表示
     splash = tk.Tk()
     splash.overrideredirect(True)
-    container = tk.Frame(splash, bd=1, relief='flat', bg='white')
+    try:
+        splash.configure(bg=BG_COLOR)
+    except Exception:
+        pass
+    container = tk.Frame(splash, bd=1, relief='flat', bg=BG_COLOR)
     container.pack(padx=8, pady=8)
     img_label = None
+    # リソース探索 (PyInstaller --onefile 対応 resource_util 経由)
     logo_path_candidates = [
+        resource_path('logo.png'),
+        resource_path('origin_logo.png'),
         os.path.join(os.getcwd(), 'logo.png'),
         os.path.join(os.path.dirname(__file__), 'logo.png'),
     ]
@@ -38,11 +47,30 @@ def main():
             except Exception:
                 logo_img = None
     if logo_img is not None:
-        img_label = tk.Label(container, image=logo_img, bg='white')
+        img_label = tk.Label(container, image=logo_img, bg=BG_COLOR)
         img_label.image = logo_img  # keep ref
         img_label.pack(padx=10, pady=(10,4))
-    lbl = tk.Label(container, text='AI Meeting Recorder 起動中...\nモデル読み込み中', padx=30, pady=10, font=('Segoe UI', 11), bg='white')
+    lbl = tk.Label(container, text='AI Meeting Recorder 起動中...\nモデル読み込み中', padx=30, pady=10, font=('Segoe UI', 11), bg=BG_COLOR, fg=FG_COLOR)
     lbl.pack()
+    # アイコン設定: PNG(推奨) -> ICO フォールバック (PyInstaller対応)
+    icon_image = None
+    icon_path_png = resource_path('amr24.png')
+    icon_path_ico = resource_path('amr.ico')
+    try:
+        if os.path.exists(icon_path_png):
+            try:
+                icon_image = tk.PhotoImage(file=icon_path_png)
+                splash.iconphoto(False, icon_image)
+                splash._icon_image = icon_image
+            except Exception:
+                icon_image = None
+        if icon_image is None and os.path.exists(icon_path_ico):
+            try:
+                splash.iconbitmap(icon_path_ico)
+            except Exception:
+                pass
+    except Exception:
+        pass
     splash.update()
     _center(splash)
 
@@ -72,6 +100,19 @@ def main():
     else:
         root = tk.Tk()
     root.title('AI Meeting Recorder (MVC)')
+    # メインウィンドウにもアイコン適用
+    try:
+        if icon_image is not None:
+            root.iconphoto(False, icon_image)
+            root._icon_image = icon_image
+        elif os.path.exists(icon_path_png):
+            icon_image = tk.PhotoImage(file=icon_path_png)
+            root.iconphoto(False, icon_image)
+            root._icon_image = icon_image
+        elif os.path.exists(icon_path_ico):
+            root.iconbitmap(icon_path_ico)
+    except Exception:
+        pass
     controller = RecorderController(root)
     root.protocol('WM_DELETE_WINDOW', controller.on_close)
     root.mainloop()

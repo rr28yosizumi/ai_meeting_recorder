@@ -3,8 +3,15 @@ import queue
 import sounddevice as sd
 import numpy as np
 import os
+from .resource_util import resource_path as _res_path
+import tkinter as tk
+try:
+    from PIL import Image, ImageSequence, ImageTk  # 高品質GIF用
+    _PIL_AVAILABLE = True
+except Exception:
+    _PIL_AVAILABLE = False
 from .model import RecorderModel
-from .view import RecorderView
+from .view import RecorderView, BG_COLOR, FG_COLOR
 from . import ai_control
 
 class RecorderController:
@@ -33,6 +40,9 @@ class RecorderController:
                 pass
         self.start_preview()
         self._schedule_waveform_update()
+        # 議事録処理状態
+        self.processing_minutes = False
+        self.processing_overlay = None
 
     # 汎用ボタン状態変更（CustomTkinter/Tk 両対応）
     def _set_state(self, widget, state: str):
@@ -239,7 +249,8 @@ class RecorderController:
             pass
         self.view.log('録音終了')
         if self.model.mix_and_save(logger=self.view.log):
-            self._process_minutes()
+            # 非同期で議事録生成
+            self._start_minutes_processing()
             # 録音保存後、最新のwavパスをGUIへ反映
             self.view.wav_path.set(self.model.settings.wav_file)
         self.restart_preview()
@@ -304,6 +315,9 @@ class RecorderController:
             logger=self.view.log,
             lang=lang
         )
+        # 念のため None ガード
+        if result is None:
+            result = {'success': False, 'error': 'create_meeting_report returned None'}
         if not result.get('success'):
             err = result.get('error')
             if err:
@@ -311,6 +325,7 @@ class RecorderController:
         else:
             if result.get('summary_file'):
                 self.view.log(f"要約ファイル: {result['summary_file']}")
+        return result
 
     def transcribe_and_summarize(self):
         wav_file = self.view.wav_path.get()
@@ -318,5 +333,177 @@ class RecorderController:
             self.view.log(f"指定されたWAVファイルが存在しません: {wav_file}")
             return
         self.view.log(f"WAVファイルから文字起こし・要約を実行: {wav_file}")
-        self._process_minutes()
-        self.view.show_info('要約完了', '要約処理が終了しました。')
+        self._start_minutes_processing()
+
+    # ---------------- 議事録生成 非同期処理 ----------------
+    def _start_minutes_processing(self):
+        if self.processing_minutes:
+            self.view.log('既に議事録処理中です')
+            return
+        self.processing_minutes = True
+        self._show_processing_overlay()
+        # 処理中は関連ボタンを無効化
+        self._set_states({
+            self.view.btn_record: 'disabled',
+            self.view.btn_pause: 'disabled',
+            self.view.btn_resume: 'disabled',
+            self.view.btn_stop: 'disabled',
+            self.view.btn_transcribe: 'disabled'
+        })
+        th = threading.Thread(target=self._minutes_thread_body, daemon=True)
+        th.start()
+
+    def _minutes_thread_body(self):
+        try:
+            result = self._process_minutes()
+        except Exception as e:
+            self.view.log(f"議事録処理中例外: {e}")
+            result = {'success': False, 'error': str(e)}
+        # UI スレッドへ戻す
+        self.view.master.after(0, lambda r=result: self._finish_minutes_processing(r))
+
+    def _finish_minutes_processing(self, result):
+        # 型ガード
+        if not isinstance(result, dict):
+            result = {'success': False, 'error': 'unexpected result object'}
+        self.processing_minutes = False
+        self._hide_processing_overlay()
+        # ボタン再有効化
+        self._set_states({
+            self.view.btn_record: 'normal',
+            self.view.btn_transcribe: 'normal'
+        })
+        self._update_transcribe_button_state()
+        if result.get('success'):
+            self.view.show_info('要約完了', '要約処理が終了しました。')
+        else:
+            self.view.show_info('要約失敗', '要約処理でエラーが発生しました。ログを確認してください。')
+
+    def _show_processing_overlay(self):
+        try:
+            if getattr(self, 'processing_overlay', None) and tk.Toplevel.winfo_exists(self.processing_overlay):
+                return
+            top = tk.Toplevel(self.view.master)
+            top.title('処理中')
+            top.transient(self.view.master)
+            top.grab_set()
+            try:
+                top.configure(bg=BG_COLOR)
+            except Exception:
+                pass
+            # テキストラベル (背景/前景をテーマ適用)
+            lbl_text = tk.Label(top, text='議事録生成中...\nしばらくお待ちください', padx=20, pady=10, bg=BG_COLOR, fg=FG_COLOR)
+            lbl_text.pack()
+
+            # GIF アニメーション (output.gif) を読み込み (存在しない場合はスキップ)
+            gif_path_candidates = [
+                _res_path('output.gif'),  # 推奨配置場所 (PyInstaller対応)
+                os.path.join(os.path.dirname(os.path.abspath(__file__)), 'output.gif'),
+                os.path.join(os.getcwd(), 'output.gif')
+            ]
+            gif_path = None
+            for p in gif_path_candidates:
+                if os.path.exists(p):
+                    gif_path = p
+                    break
+            if gif_path:
+                try:
+                    if _PIL_AVAILABLE:
+                        # Pillow を使って全フレーム読み込み（透明度/最適化考慮）
+                        img = Image.open(gif_path)
+                        frames = []
+                        durations = []
+                        for i, frame in enumerate(ImageSequence.Iterator(img)):
+                            # RGBA へ変換して画質を維持
+                            fr = frame.convert('RGBA')
+                            frames.append(ImageTk.PhotoImage(fr))
+                            # フレーム毎の duration(ms) を取得（無い場合 80ms）
+                            d = frame.info.get('duration', img.info.get('duration', 80))
+                            durations.append(d if d > 0 else 80)
+                            if i > 300:  # 安全上限
+                                break
+                        if frames:
+                            gif_label = tk.Label(top, image=frames[0], bd=0, bg=BG_COLOR)
+                            gif_label.pack(padx=10, pady=(0, 10))
+                            top._gif_frames = frames
+                            top._gif_durations = durations
+                            top._gif_index = 0
+
+                            def _animate_pil():
+                                try:
+                                    if not tk.Toplevel.winfo_exists(top):
+                                        return
+                                    frs = getattr(top, '_gif_frames', [])
+                                    if not frs:
+                                        return
+                                    top._gif_index = (top._gif_index + 1) % len(frs)
+                                    gif_label.configure(image=frs[top._gif_index])
+                                    durs = getattr(top, '_gif_durations', [80])
+                                    delay = durs[top._gif_index] if top._gif_index < len(durs) else 80
+                                    top.after(delay, _animate_pil)
+                                except Exception:
+                                    pass
+                            # 最初の遅延（0 だと固まる場合があるので最小 20ms）
+                            first_delay = max(20, durations[0] if durations else 80)
+                            top.after(first_delay, _animate_pil)
+                    else:
+                        # Pillow 無しフォールバック: 従来の tk.PhotoImage による読み込み
+                        frames = []
+                        idx = 0
+                        while True:
+                            try:
+                                frame = tk.PhotoImage(file=gif_path, format=f'gif -index {idx}')
+                            except Exception:
+                                break
+                            frames.append(frame)
+                            idx += 1
+                            if idx > 200:
+                                break
+                        if frames:
+                            gif_label = tk.Label(top, image=frames[0], bd=0, bg=BG_COLOR)
+                            gif_label.pack(padx=10, pady=(0, 10))
+                            top._gif_frames = frames
+                            top._gif_index = 0
+                            def _animate_fallback():
+                                try:
+                                    if not tk.Toplevel.winfo_exists(top):
+                                        return
+                                    frs = getattr(top, '_gif_frames', [])
+                                    if not frs:
+                                        return
+                                    top._gif_index = (top._gif_index + 1) % len(frs)
+                                    gif_label.configure(image=frs[top._gif_index])
+                                    top.after(80, _animate_fallback)
+                                except Exception:
+                                    pass
+                            top.after(80, _animate_fallback)
+                        if not frames:
+                            self.view.log('GIFフレームが読み込めません (フォールバック)')
+                except Exception as e:
+                    self.view.log(f"GIF読み込み失敗: {e}")
+            # 中央配置
+            try:
+                top.update_idletasks()
+                w = top.winfo_width(); h = top.winfo_height()
+                sw = top.winfo_screenwidth(); sh = top.winfo_screenheight()
+                x = (sw - w)//2; y = (sh - h)//2
+                top.geometry(f"{w}x{h}+{x}+{y}")
+            except Exception:
+                pass
+            self.processing_overlay = top
+        except Exception as e:
+            self.view.log(f"処理中画面表示エラー: {e}")
+
+    def _hide_processing_overlay(self):
+        top = getattr(self, 'processing_overlay', None)
+        if not top:
+            return
+        try:
+            top.grab_release()
+        except Exception:
+            pass
+        try:
+            top.destroy()
+        except Exception:
+            pass
+        self.processing_overlay = None

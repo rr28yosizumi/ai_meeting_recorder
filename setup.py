@@ -17,6 +17,7 @@ setup(
         'pydub',
         'tkinter',
         'audioop-lts',
+        'pillow'
     ],
     python_requires='>=3.8',
     entry_points={

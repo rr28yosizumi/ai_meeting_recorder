@@ -83,7 +83,7 @@ class RecorderView:
         # Tk変数
         self.mic_device_var = tk.StringVar()
         self.spk_device_var = tk.StringVar()
-        self.lang_var = tk.StringVar(value='ja')
+        self.lang_var = tk.StringVar(value='日本語 (ja)')
         self.gemini_key_var = tk.StringVar()
         self.output_path = tk.StringVar()
         self.wav_path = tk.StringVar()
@@ -124,6 +124,10 @@ class RecorderView:
         WidgetLabel(self.master, text="文字起こし言語:", **label_kwargs).grid(row=row, column=0, padx=4, pady=4, sticky='w')
         if _USE_CTK:
             self.lang_combo = WidgetCombo(self.master, variable=self.lang_var, values=["日本語 (ja)", "英語 (en)"])
+            try:
+                self.lang_combo.set(self.lang_var.get())
+            except Exception:
+                pass
         else:
             self.lang_combo = tk.OptionMenu(self.master, self.lang_var, "日本語 (ja)", "英語 (en)")
             self.lang_combo.configure(bg='#002244', fg=FG_COLOR, highlightthickness=0, activebackground='#003c66', activeforeground=FG_COLOR)
