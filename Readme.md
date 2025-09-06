@@ -80,6 +80,11 @@ GUIが起動します。
 7. 完了後、議事録テキストをダイアログ保存できます。
 
 ### GUI 各要素
+
+<p align="center">
+	<img src="UI_Image.png" alt="AI Meeting Recorder Logo" />
+</p>
+
 | 項目 | 説明 |
 |------|------|
 | マイク入力デバイス | sounddevice で列挙された録音デバイス |

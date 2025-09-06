@@ -106,7 +106,7 @@ def main():
         root = ctk.CTk()
     else:
         root = tk.Tk()
-    root.title('AI Meeting Recorder (MVC)')
+    root.title('AI Meeting Recorder')
     # 初期ウィンドウサイズ (高さ拡張) 既存最小サイズを考慮し幅は自動計算に任せる
     try:
         # 既にウィジェット構築前なので一旦適当な幅×高さを指定
