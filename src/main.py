@@ -13,6 +13,10 @@ except Exception:
     ctk = None
     _USE_CTK = False
 
+import sys
+if getattr(sys, 'frozen', False):
+    import pyi_splash
+
 def _center(win):
     win.update_idletasks()
     w = win.winfo_width(); h = win.winfo_height()
@@ -92,6 +96,9 @@ def main():
 
     threading.Thread(target=preload, daemon=True).start()
     splash.mainloop()
+
+    if getattr(sys, 'frozen', False):
+        pyi_splash.close()
 
     # メインGUI
     # CustomTkinter 利用可能ならメインウィンドウも CTk を使用
