@@ -2,7 +2,7 @@
 # ai_meeting_recorder
 
 <p align="center">
-	<img src="src/resource/logo.png" alt="AI Meeting Recorder Logo" width="200" />
+	<img src="src/resource/logo.png" alt="AI Meeting Recorder Logo" />
 </p>
 
 会議録音・議事録作成ツール  
