@@ -1,5 +1,6 @@
  Name                          Version      License                                                                        
- PyYAML                        6.0.2        MIT License                                                                                                                                 
+ PyYAML                        6.0.2        MIT License                                                                                                                                                                                               
+ altgraph                      0.17.4       MIT License                                                                    
  annotated-types               0.7.0        MIT License                                                                    
  audioop-lts                   0.2.2        UNKNOWN                                                                        
  cachetools                    5.5.2        MIT License                                                                    
@@ -27,6 +28,7 @@
  matplotlib                    3.10.6       Python Software Foundation License                                             
  numpy                         2.3.2        BSD License                                                                    
  packaging                     25.0         Apache Software License; BSD License                                           
+ pefile                        2023.2.7     MIT                                                                            
  pillow                        11.3.0       UNKNOWN                                                                        
  proto-plus                    1.26.1       Apache Software License                                                        
  protobuf                      5.29.5       3-Clause BSD License                                                           
@@ -35,9 +37,10 @@
  pycparser                     2.22         BSD License                                                                    
  pydantic                      2.11.7       MIT License                                                                    
  pydantic_core                 2.33.2       MIT License                                                                    
- pydub                         0.25.1       MIT License                                                                    
+ pydub                         0.25.1       MIT License                                                                                                          
  pyparsing                     3.2.3        MIT License                                                                    
  python-dateutil               2.9.0.post0  Apache Software License; BSD License                                           
+ pywin32-ctypes                0.2.3        BSD-3-Clause                                                                   
  requests                      2.32.5       Apache Software License                                                        
  rsa                           4.9.1        Apache Software License                                                        
  six                           1.17.0       MIT License                                                                    

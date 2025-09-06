@@ -16,7 +16,8 @@ setup(
         'pydub',
         'customtkinter',
         'pillow',
-        'google-generativeai'
+        'google-generativeai',
+        'openai-whisper'
     ],
     python_requires='>=3.8',
     entry_points={

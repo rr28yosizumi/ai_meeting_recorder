@@ -20,7 +20,8 @@ dependencies = [
     "pydub",
     "customtkinter",
     "pillow",
-    "google-generativeai"
+    "google-generativeai",
+    "openai-whisper"
 ]
 
 [project.urls]

@@ -36,7 +36,7 @@ class RecorderView:
                 master.configure(fg_color=BG_COLOR)
             except Exception:
                 pass
-        master.title("議事録作成ツール")
+        master.title("AI Meeting Recorder")
         if not _USE_CTK:
             try:
                 master.configure(bg=BG_COLOR)
