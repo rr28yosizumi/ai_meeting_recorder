@@ -14,8 +14,6 @@ setup(
         'matplotlib',
         'pyyaml',
         'pydub',
-        'tkinter',
-        'audioop-lts',
         'customtkinter',
         'pillow',
         'google-generativeai'
