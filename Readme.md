@@ -102,12 +102,6 @@ GUIが起動します。
 2. [WAVから文字起こし・要約] を押す
 3. Whisper → Gemini の順に処理 / 完了後保存ダイアログ
 
-### PyInstaller での配布
-```
-pyinstaller src/main.py --name ai_meeting_recorder --onefile --noconsole \
-	--add-data "src/resource;resource" --splash src/resource/logo.png
-```
-Whisper モデルを同梱しない場合: 初回実行時に自動ダウンロード（ユーザ環境ネットワーク必須）。
 
 ### Whisper モデルのサイズ最適化
 - デフォルトで small / base などを選択し、`ai_control.py` 側でモデル名変更可。
