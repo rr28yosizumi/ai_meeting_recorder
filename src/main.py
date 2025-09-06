@@ -107,6 +107,12 @@ def main():
     else:
         root = tk.Tk()
     root.title('AI Meeting Recorder (MVC)')
+    # 初期ウィンドウサイズ (高さ拡張) 既存最小サイズを考慮し幅は自動計算に任せる
+    try:
+        # 既にウィジェット構築前なので一旦適当な幅×高さを指定
+        root.geometry('1000x780')  # 高さを増加 (例: 780)
+    except Exception:
+        pass
     # メインウィンドウにもアイコン適用
     try:
         if icon_image is not None:
