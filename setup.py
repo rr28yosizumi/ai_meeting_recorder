@@ -10,13 +10,14 @@ setup(
     package_dir={'': 'src'},
     install_requires=[
         'numpy',
-        'scipy',
         'sounddevice',
         'matplotlib',
         'pyyaml',
         'pydub',
-        'tkinter',
-        'audioop-lts',
+        'customtkinter',
+        'pillow',
+        'google-generativeai',
+        'openai-whisper'
     ],
     python_requires='>=3.8',
     entry_points={

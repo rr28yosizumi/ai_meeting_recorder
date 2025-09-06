@@ -1,7 +1,6 @@
 import sounddevice as sd
-from scipy.io.wavfile import write
 import numpy as np
-import scipy.io.wavfile as wav
+import wave
 import os
 
 # 録音設定
@@ -31,7 +30,12 @@ def record_audio(filename):
 
     if frames:
         audio = np.concatenate(frames, axis=0)
-        write(filename, SAMPLE_RATE, audio)
+        pcm16 = (np.clip(audio, -1, 1) * 32767).astype('<i2')
+        with wave.open(filename, 'wb') as wf:
+            wf.setnchannels(CHANNELS)
+            wf.setsampwidth(2)
+            wf.setframerate(SAMPLE_RATE)
+            wf.writeframes(pcm16.tobytes())
         print(f"録音保存: {filename}")
     else:
         print("録音データがありません")
@@ -54,7 +58,17 @@ def split_audio(input_file, output_dir, min_silence_len=1000, silence_thresh=-40
         - 分割ファイルのパスリストを返す。
     """
     os.makedirs(output_dir, exist_ok=True)
-    rate, data = wav.read(input_file)
+    # WAV 読み込み (16bit PCM 前提)
+    with wave.open(input_file, 'rb') as wf:
+        rate = wf.getframerate()
+        nch = wf.getnchannels()
+        sampwidth = wf.getsampwidth()
+        frames = wf.readframes(wf.getnframes())
+    if sampwidth != 2:
+        raise ValueError('16bit PCM WAV のみ対応')
+    data = np.frombuffer(frames, dtype='<i2')
+    if nch > 1:
+        data = data.reshape(-1, nch)[:,0]
     if data.ndim > 1:
         data = data[:,0]  # モノラル化
     # 振幅をdBに変換
@@ -80,8 +94,12 @@ def split_audio(input_file, output_dir, min_silence_len=1000, silence_thresh=-40
         if end - start > min_silence_samples:
             chunk = data[start:end]
             out_file = os.path.join(output_dir, f"chunk_{idx+1}.wav")
-            # wav.write(out_file, rate, chunk.astype(np.int16))
-            wav.write(out_file, rate, chunk)
+            pcm16 = chunk.astype('<i2') if chunk.dtype != np.int16 else chunk
+            with wave.open(out_file, 'wb') as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(rate)
+                wf.writeframes(pcm16.tobytes())
             files.append(out_file)
         start = end
     return files
@@ -92,15 +110,26 @@ def split_audio_by_time(input_file, output_dir, split_seconds=30):
     音声ファイルを指定した秒数ごとに分割
     """
     os.makedirs(output_dir, exist_ok=True)
-    rate, data = wav.read(input_file)
-    if data.ndim > 1:
-        data = data[:,0]  # モノラル化
+    with wave.open(input_file, 'rb') as wf:
+        rate = wf.getframerate()
+        nch = wf.getnchannels()
+        sampwidth = wf.getsampwidth()
+        frames = wf.readframes(wf.getnframes())
+    if sampwidth != 2:
+        raise ValueError('16bit PCM WAV のみ対応')
+    data = np.frombuffer(frames, dtype='<i2')
+    if nch > 1:
+        data = data.reshape(-1, nch)[:,0]
     samples_per_split = int(rate * split_seconds)
     files = []
     for i in range(0, len(data), samples_per_split):
         chunk = data[i:i+samples_per_split]
         out_file = os.path.join(output_dir, f"time_chunk_{i//samples_per_split+1}.wav")
-        #wav.write(out_file, rate, chunk.astype(np.int16))
-        wav.write(out_file, rate, chunk)
+        pcm16 = chunk.astype('<i2') if chunk.dtype != np.int16 else chunk
+        with wave.open(out_file, 'wb') as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(rate)
+            wf.writeframes(pcm16.tobytes())
         files.append(out_file)
     return files
